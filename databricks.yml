@@ -7,12 +7,9 @@ variables:
   warehouse_id:
     description: "SQL Warehouse ID for AI functions"
 
-variables:
-  workspace_url:
-    description: "Databricks workspace URL"
-
 workspace:
-  host: ${var.workspace_url}
+  host: https://fe-sandbox-serverless-sandbox-hsze05.cloud.databricks.com
+  profile: pptx-demo
 
 resources:
   apps:
@@ -20,45 +17,34 @@ resources:
       name: denso-pptx-generator
       description: "DENSO AI-Powered Engineering PPTX Generator"
       source_code_path: ./app
-      config:
-        - name: CATALOG
-          value: ${var.catalog}
-        - name: SCHEMA
-          value: denso_demo
-        - name: DATABRICKS_WAREHOUSE_ID
-          value: ${var.warehouse_id}
 
   jobs:
     setup_gold_tables:
       name: "[DENSO Demo] Setup Gold Tables & Drawings"
-      job_clusters:
-        - job_cluster_key: demo_cluster
-          new_cluster:
-            spark_version: "15.4.x-scala2.12"
-            node_type_id: "i3.xlarge"
-            num_workers: 0
-            spark_conf:
-              "spark.master": "local[*]"
       tasks:
         - task_key: setup_catalog
-          job_cluster_key: demo_cluster
+          environment_key: default
           notebook_task:
-            notebook_path: ./notebooks/01_setup_catalog
+            notebook_path: ./notebooks/01_setup_catalog.py
             base_parameters:
               catalog: ${var.catalog}
         - task_key: load_gold_data
           depends_on:
             - task_key: setup_catalog
-          job_cluster_key: demo_cluster
+          environment_key: default
           notebook_task:
-            notebook_path: ./notebooks/02_load_gold_tables
+            notebook_path: ./notebooks/02_load_gold_tables.py
             base_parameters:
               catalog: ${var.catalog}
         - task_key: load_drawings
           depends_on:
             - task_key: setup_catalog
-          job_cluster_key: demo_cluster
+          environment_key: default
           notebook_task:
-            notebook_path: ./notebooks/03_load_drawings
+            notebook_path: ./notebooks/03_load_drawings.py
             base_parameters:
               catalog: ${var.catalog}
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
