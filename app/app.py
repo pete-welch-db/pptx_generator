@@ -266,16 +266,27 @@ with tab_demo:
         with st.spinner("Building your presentation\u2026"):
             progress = st.progress(0, text="Reading gold tables\u2026")
 
-            # 1 — Read data
+            # 1 — Read data (each table independently so one failure doesn't block others)
             thermal_df = mfg_df = test_df = specs_df = None
             if IN_DATABRICKS and data_loader:
-                try:
-                    thermal_df = data_loader.read_thermal_sensors()
-                    mfg_df = data_loader.read_manufacturing_quality()
-                    test_df = data_loader.read_test_results()
-                    specs_df = data_loader.read_component_specs()
-                except Exception as e:
-                    st.warning(f"Could not read gold tables: {e}")
+                for name, loader in [
+                    ("thermal_sensor_readings", lambda: data_loader.read_thermal_sensors()),
+                    ("manufacturing_quality", lambda: data_loader.read_manufacturing_quality()),
+                    ("component_test_results", lambda: data_loader.read_test_results()),
+                    ("component_specs", lambda: data_loader.read_component_specs()),
+                ]:
+                    try:
+                        df = loader()
+                        if name == "thermal_sensor_readings":
+                            thermal_df = df
+                        elif name == "manufacturing_quality":
+                            mfg_df = df
+                        elif name == "component_test_results":
+                            test_df = df
+                        elif name == "component_specs":
+                            specs_df = df
+                    except Exception as e:
+                        st.warning(f"Could not read {name}: {e}")
 
             progress.progress(20, text="Generating visualizations\u2026")
 

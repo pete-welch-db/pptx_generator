@@ -37,10 +37,15 @@ def get_connection():
     w = WorkspaceClient()
     warehouse_id = os.environ.get("DATABRICKS_WAREHOUSE_ID", "")
     hostname = w.config.host.replace("https://", "").replace("http://", "")
+
+    # Extract bearer token from SDK auth headers
+    headers = w.config.authenticate()
+    token = headers.get("Authorization", "").replace("Bearer ", "")
+
     return dbsql.connect(
         server_hostname=hostname,
         http_path=f"/sql/1.0/warehouses/{warehouse_id}",
-        credentials_provider=lambda: dict(w.config.authenticate()),
+        access_token=token,
     )
 
 
