@@ -44,6 +44,14 @@ resources:
             notebook_path: ./notebooks/03_load_drawings.py
             base_parameters:
               catalog: ${var.catalog}
+        - task_key: analyze_drawings
+          depends_on:
+            - task_key: load_drawings
+          environment_key: default
+          notebook_task:
+            notebook_path: ./notebooks/04_analyze_drawings.py
+            base_parameters:
+              catalog: ${var.catalog}
       environments:
         - environment_key: default
           spec:

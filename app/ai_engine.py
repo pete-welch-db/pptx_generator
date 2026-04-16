@@ -149,6 +149,168 @@ def analyze_drawing(image_bytes: bytes, model: str = "databricks-claude-sonnet-4
 
 
 # ---------------------------------------------------------------------------
+# Real-time drawing analysis + vectorization (for uploads)
+# ---------------------------------------------------------------------------
+
+_EXTRACT_PROMPT = """You are a DENSO automotive thermal-systems engineer analyzing a patent drawing.
+
+Analyze this engineering drawing and return ONLY valid JSON:
+
+{
+    "extracted_components": ["list", "of", "specific", "components", "shown"],
+    "extracted_specs": {"spec_name": "value"},
+    "system_area": "one of: thermal, electrical, mechanical, control, system_architecture",
+    "description_text": "Detailed 3-4 sentence technical description of what this drawing shows",
+    "data_keywords": ["keywords", "matching", "test", "data"]
+}
+
+For data_keywords include: temperature, cooling, thermal, pressure, flow_rate,
+heat_exchanger, coolant, refrigerant, valve, pump, sensor, ECU, battery, uniformity, etc."""
+
+
+def analyze_and_index_drawing(
+    image_bytes: bytes,
+    filename: str,
+    model: str = "databricks-claude-sonnet-4-6",
+) -> dict:
+    """Analyze a drawing with vision, generate embedding, and insert into drawing_analysis.
+
+    Called in real-time when a user uploads a new drawing.
+    Returns the extracted metadata dict.
+    """
+    from databricks.sdk import WorkspaceClient
+
+    w = WorkspaceClient()
+    b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+    result = {
+        "filename": filename,
+        "description_text": "",
+        "extracted_components": [],
+        "data_keywords": [],
+        "system_area": "unknown",
+    }
+
+    # 1 — Vision extraction
+    try:
+        response = w.serving_endpoints.query(
+            name=model,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+                    {"type": "text", "text": _EXTRACT_PROMPT},
+                ],
+            }],
+            max_tokens=1024,
+        )
+        raw = response.choices[0].message.content
+        text = raw
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.split("```")[0]
+        parsed = json.loads(text)
+        result.update(parsed)
+    except Exception as e:
+        print(f"[ai_engine] Vision extraction failed for {filename}: {e}")
+        result["description_text"] = f"Uploaded engineering drawing: {filename}"
+
+    # 2 — Insert into drawing_analysis table via SQL
+    try:
+        desc = result.get("description_text", "").replace("'", "''")
+        components = result.get("extracted_components", [])
+        keywords = result.get("data_keywords", [])
+        system_area = result.get("system_area", "unknown").replace("'", "''")
+        specs = result.get("extracted_specs", {})
+
+        comp_sql = "ARRAY(" + ",".join(f"'{c}'" for c in components) + ")" if components else "ARRAY()"
+        kw_sql = "ARRAY(" + ",".join(f"'{k}'" for k in keywords) + ")" if keywords else "ARRAY()"
+        specs_sql = "MAP(" + ",".join(f"'{k}','{v}'" for k, v in specs.items()) + ")" if specs else "MAP()"
+
+        with data_loader.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                INSERT INTO {data_loader._fqn('drawing_analysis')}
+                (filename, patent, title, category, extracted_components,
+                 extracted_specs, system_area, description_text, data_keywords)
+                VALUES (
+                    '{filename}', 'Uploaded', '{filename.rsplit(".", 1)[0]}', 'Uploaded',
+                    {comp_sql}, {specs_sql}, '{system_area}', '{desc}', {kw_sql}
+                )
+            """)
+        print(f"[ai_engine] Indexed {filename} in drawing_analysis")
+    except Exception as e:
+        print(f"[ai_engine] Failed to index {filename}: {e}")
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Vector search — match data descriptions to drawings
+# ---------------------------------------------------------------------------
+
+VS_INDEX = None  # Set at runtime based on catalog
+
+
+def find_matching_drawings(query_text: str, num_results: int = 3) -> list[dict]:
+    """Find drawings that semantically match a data description.
+
+    Example: find_matching_drawings("thermal sensor temperature 38.2C battery module")
+    Returns drawings most related to that data.
+    """
+    from databricks.sdk import WorkspaceClient
+
+    catalog = data_loader._get_catalog()
+    schema = data_loader._get_schema()
+    index_name = f"{catalog}.{schema}.drawing_analysis_index"
+
+    try:
+        w = WorkspaceClient()
+        results = w.vector_search_indexes.query_index(
+            index_name=index_name,
+            columns=["filename", "title", "system_area", "description_text", "data_keywords"],
+            query_text=query_text,
+            num_results=num_results,
+        )
+        matches = []
+        if results.result and results.result.data_array:
+            col_names = [c.name for c in results.manifest.columns] if results.manifest else []
+            for row in results.result.data_array:
+                match = dict(zip(col_names, row)) if col_names else {"filename": row[0]}
+                matches.append(match)
+        return matches
+    except Exception as e:
+        print(f"[ai_engine] Vector search failed: {e}")
+        return []
+
+
+def match_data_to_drawings(data_tables: dict) -> dict:
+    """For each gold table, find the most relevant drawings.
+
+    Args:
+        data_tables: {"thermal_sensor_readings": df, "manufacturing_quality": df, ...}
+
+    Returns:
+        {"thermal_sensor_readings": [{"filename": ..., "score": ...}, ...], ...}
+    """
+    descriptions = {
+        "thermal_sensor_readings": "battery module thermal sensor temperature readings heat distribution cooling uniformity delta-T",
+        "component_test_results": "component validation test results performance metrics pass fail specification limits",
+        "manufacturing_quality": "manufacturing quality control Cpk tolerance flatness cooling plate dimensional inspection",
+        "durability_cycling": "thermal cycling durability endurance test min max temperature coolant flow pressure degradation",
+        "component_specs": "component specifications part numbers materials weight tolerance status BOM",
+    }
+
+    matches = {}
+    for table_name, df in data_tables.items():
+        if df is not None:
+            query = descriptions.get(table_name, table_name.replace("_", " "))
+            matches[table_name] = find_matching_drawings(query, num_results=3)
+    return matches
+
+
+# ---------------------------------------------------------------------------
 # ai_parse_document for structured extraction
 # ---------------------------------------------------------------------------
 

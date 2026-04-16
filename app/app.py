@@ -295,6 +295,22 @@ with tab_demo:
             test_img = _make_test_chart(test_df)
             tolerance_img = _make_tolerance_chart(mfg_df)
 
+            progress.progress(30, text="Matching drawings to data via Vector Search\u2026")
+
+            # 2b — Vector search: find which drawings match which data
+            data_drawing_matches = {}
+            if IN_DATABRICKS and ai_engine:
+                try:
+                    data_tables = {
+                        "thermal_sensor_readings": thermal_df,
+                        "component_test_results": test_df,
+                        "manufacturing_quality": mfg_df,
+                        "component_specs": specs_df,
+                    }
+                    data_drawing_matches = ai_engine.match_data_to_drawings(data_tables)
+                except Exception as e:
+                    print(f"Vector search matching: {e}")
+
             progress.progress(40, text="Generating AI content\u2026")
 
             # 3 — AI content
@@ -303,6 +319,24 @@ with tab_demo:
             else:
                 from ai_engine import _FALLBACK_CONTENT
                 content = _FALLBACK_CONTENT
+
+            progress.progress(55, text="Processing drawings\u2026")
+
+            # 3b — Process uploaded drawings: analyze + index in real-time
+            upload_analyses = {}
+            for uf in (uploaded_drawings or []):
+                if IN_DATABRICKS and ai_engine:
+                    try:
+                        uf_bytes = uf.read()
+                        uf.seek(0)
+                        with st.spinner(f"Analyzing & indexing {uf.name}\u2026"):
+                            # Save to volume
+                            data_loader.upload_drawing(uf.name, uf_bytes)
+                            # Analyze + insert into drawing_analysis (vector search auto-syncs)
+                            analysis = ai_engine.analyze_and_index_drawing(uf_bytes, uf.name)
+                            upload_analyses[uf.name] = analysis
+                    except Exception as e:
+                        print(f"Upload analysis failed for {uf.name}: {e}")
 
             progress.progress(65, text="Building PPTX\u2026")
 
@@ -325,31 +359,62 @@ with tab_demo:
                 bullets=content["system_overview_bullets"],
             )
 
-            # Engineering drawings from volume + uploads
+            # Engineering drawings — now with intelligent data linking
             all_drawing_images = []
             for drw in selected_drawings:
                 try:
                     img_bytes = data_loader.read_drawing(drw["path"])
-                    all_drawing_images.append((drw["name"], BytesIO(img_bytes)))
+                    all_drawing_images.append((drw["name"], BytesIO(img_bytes), "volume"))
                 except Exception:
                     pass
 
             for uf in (uploaded_drawings or []):
-                all_drawing_images.append((uf.name, BytesIO(uf.read())))
+                uf.seek(0)
+                all_drawing_images.append((uf.name, BytesIO(uf.read()), "upload"))
 
             if all_drawing_images:
                 builder.add_section_slide("Engineering Drawings", number=3)
-                for name, img_buf in all_drawing_images:
+                for name, img_buf, source in all_drawing_images:
+                    # Get caption from vector-matched context or upload analysis
                     caption = ""
-                    if IN_DATABRICKS and ai_engine:
+                    matched_data_context = ""
+                    if source == "upload" and name in upload_analyses:
+                        analysis = upload_analyses[name]
+                        caption = analysis.get("description_text", "")
+                        kw = ", ".join(analysis.get("data_keywords", [])[:5])
+                        if kw:
+                            matched_data_context = f"Related data: {kw}"
+                    elif IN_DATABRICKS and ai_engine:
                         try:
                             img_buf.seek(0)
                             caption = ai_engine.analyze_drawing(img_buf.read())
                             img_buf.seek(0)
                         except Exception:
                             pass
-                    title = name.rsplit(".", 1)[0].replace("-", " ").replace("_", " ").title()
-                    builder.add_image_slide(title, img_buf, caption=caption)
+
+                    slide_title = name.rsplit(".", 1)[0].replace("-", " ").replace("_", " ").title()
+                    full_caption = caption
+                    if matched_data_context:
+                        full_caption = f"{caption}  |  {matched_data_context}" if caption else matched_data_context
+                    builder.add_image_slide(slide_title, img_buf, caption=full_caption)
+
+                # Show data-drawing linkage slide if vector search found matches
+                if data_drawing_matches:
+                    linkage_bullets = []
+                    for table_name, matches in data_drawing_matches.items():
+                        if matches:
+                            drawing_names = [m.get("filename", "?") for m in matches[:2]]
+                            linkage_bullets.append(
+                                f"{table_name.replace('_', ' ').title()}: "
+                                f"linked to {', '.join(drawing_names)}"
+                            )
+                    if linkage_bullets:
+                        builder.add_content_slide(
+                            "Data-Drawing Linkage (Vector Search)",
+                            body="Semantic matching automatically links engineering data to the most relevant drawings using Databricks Vector Search.",
+                            bullets=linkage_bullets,
+                        )
+
                 section_offset = 4
             else:
                 section_offset = 3
