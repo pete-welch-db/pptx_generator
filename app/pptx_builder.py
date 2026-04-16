@@ -5,6 +5,7 @@ Generates a professional 16:9 presentation with DENSO corporate colors.
 
 from io import BytesIO
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 from pptx import Presentation
@@ -12,6 +13,9 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
+
+# Logo path — resolve relative to this file
+_LOGO_PATH = Path(__file__).parent / "denso_logo.png"
 
 # ---------------------------------------------------------------------------
 # DENSO brand palette
@@ -54,14 +58,22 @@ class DensoPPTXBuilder:
     def _bottom_bar(self, slide):
         self._rect(slide, Inches(0), Inches(7.08), SLIDE_W, Inches(0.42), DARK_GRAY)
 
-    def _brand_name(self, slide, left=Inches(0.6), top=Inches(0.15)):
-        tb = slide.shapes.add_textbox(left, top, Inches(3), Inches(0.5))
-        p = tb.text_frame.paragraphs[0]
-        p.text = "DENSO"
-        p.font.size = Pt(22)
-        p.font.bold = True
-        p.font.color.rgb = WHITE
-        p.font.name = FONT
+    def _brand_name(self, slide, left=Inches(0.6), top=Inches(0.15), on_red_bg=False):
+        """Add DENSO branding. Uses logo image on white/light backgrounds,
+        white text on red backgrounds (logo is red, invisible on red)."""
+        if on_red_bg or not _LOGO_PATH.exists():
+            tb = slide.shapes.add_textbox(left, top, Inches(3), Inches(0.5))
+            p = tb.text_frame.paragraphs[0]
+            p.text = "DENSO"
+            p.font.size = Pt(24)
+            p.font.bold = True
+            p.font.color.rgb = WHITE if on_red_bg else RED
+            p.font.name = FONT
+        else:
+            # Red logo on white/light background
+            slide.shapes.add_picture(
+                str(_LOGO_PATH), left, top, Inches(1.6), Inches(0.32),
+            )
 
     def _slide_title(self, slide, text):
         tb = slide.shapes.add_textbox(Inches(3), Inches(0.17), Inches(9.6), Inches(0.5))
@@ -75,7 +87,7 @@ class DensoPPTXBuilder:
 
     def _chrome(self, slide, title: str):
         self._top_bar(slide)
-        self._brand_name(slide)
+        self._brand_name(slide, on_red_bg=True)  # logo sits in red bar → use white text
         self._slide_title(slide, title)
         self._bottom_bar(slide)
 
@@ -93,7 +105,7 @@ class DensoPPTXBuilder:
     def add_title_slide(self, title: str, subtitle: str = "", date_str: str | None = None):
         slide = self._blank_slide()
         self._rect(slide, Inches(0), Inches(0), SLIDE_W, SLIDE_H, RED)
-        self._brand_name(slide, Inches(0.7), Inches(0.5))
+        self._brand_name(slide, Inches(0.7), Inches(0.5), on_red_bg=True)
 
         tb = slide.shapes.add_textbox(Inches(0.7), Inches(2.3), Inches(11.5), Inches(2.2))
         tf = tb.text_frame
@@ -121,6 +133,8 @@ class DensoPPTXBuilder:
         slide = self._blank_slide()
         self._rect(slide, Inches(0), Inches(0), SLIDE_W, Inches(0.1), RED)
         self._bottom_bar(slide)
+        # Red logo on white background — top right
+        self._brand_name(slide, left=Inches(10.8), top=Inches(0.3), on_red_bg=False)
 
         if number is not None:
             tb = slide.shapes.add_textbox(Inches(0.7), Inches(2.0), Inches(2), Inches(1.2))
@@ -241,7 +255,7 @@ class DensoPPTXBuilder:
     def add_closing_slide(self, title: str = "Thank You", lines: list[str] | None = None):
         slide = self._blank_slide()
         self._rect(slide, Inches(0), Inches(0), SLIDE_W, SLIDE_H, RED)
-        self._brand_name(slide, Inches(0.7), Inches(0.5))
+        self._brand_name(slide, Inches(0.7), Inches(0.5), on_red_bg=True)
 
         tb = slide.shapes.add_textbox(Inches(0.7), Inches(2.5), Inches(11.5), Inches(1.5))
         p = tb.text_frame.paragraphs[0]

@@ -67,7 +67,11 @@ h1 { color: #C8102E !important; }
 # Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### DENSO")
+    logo_path = Path(__file__).parent / "denso_logo.png"
+    if logo_path.exists():
+        st.image(str(logo_path), width=180)
+    else:
+        st.markdown("### DENSO")
     st.markdown("Engineering Presentation Generator")
     st.divider()
 
