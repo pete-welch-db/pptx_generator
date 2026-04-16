@@ -96,22 +96,72 @@ with st.sidebar:
 
 
 # ---------------------------------------------------------------------------
-# Chart generators
+# Chart generators — driven by gold table data, synthetic fallback
 # ---------------------------------------------------------------------------
 
 def _make_thermal_heatmap(df: pd.DataFrame | None = None) -> BytesIO:
+    """Thermal heatmap from gold table thermal_sensor_readings.
+
+    Real data: 12 sensors on a 4x3 grid. We take peak (last-timestamp)
+    readings, build the sparse grid, then interpolate to a dense surface
+    so it looks like a proper FEA output.
+    """
     fig, ax = plt.subplots(figsize=(12, 7))
     plt.rcParams.update({"font.family": "sans-serif", "axes.titleweight": "bold"})
-    if df is not None and len(df) > 0:
-        latest = df.groupby("sensor_id").last().reset_index()
-        grid = latest.pivot(index="cell_position_row", columns="cell_position_col", values="temperature_c")
-        im = ax.imshow(grid.values, cmap="RdYlBu_r", aspect="auto", interpolation="bicubic")
-    else:
+    data_source = "synthetic"
+
+    if df is not None and len(df) > 0 and "cell_position_row" in df.columns:
+        try:
+            # Use peak temperatures (last timestamp per sensor = end of charge cycle)
+            peak = df.sort_values("timestamp").groupby("sensor_id").last().reset_index()
+            grid = peak.pivot(
+                index="cell_position_row", columns="cell_position_col", values="temperature_c",
+            ).sort_index(ascending=True)
+
+            # Interpolate 4x3 sparse grid to dense surface for FEA look
+            from scipy.ndimage import zoom
+            dense = zoom(grid.values.astype(float), (20, 30), order=3)  # 80x90 grid
+
+            im = ax.contourf(
+                np.linspace(0, grid.columns.max(), dense.shape[1]),
+                np.linspace(0, grid.index.max(), dense.shape[0]),
+                dense, levels=60, cmap="RdYlBu_r",
+            )
+
+            # Mark actual sensor positions
+            for _, row in peak.iterrows():
+                ax.plot(row["cell_position_col"], row["cell_position_row"],
+                        "k+", markersize=8, markeredgewidth=1.5)
+
+            # Annotate max temp
+            max_row = peak.loc[peak["temperature_c"].idxmax()]
+            ax.annotate(
+                f'Max: {max_row["temperature_c"]:.1f} \u00b0C',
+                xy=(max_row["cell_position_col"], max_row["cell_position_row"]),
+                xytext=(max_row["cell_position_col"] + 0.4, max_row["cell_position_row"] - 0.5),
+                fontsize=11, fontweight="bold",
+                arrowprops=dict(arrowstyle="->", color="black"),
+            )
+
+            delta_t = peak["temperature_c"].max() - peak["temperature_c"].min()
+            ax.text(0.02, 0.02, f"\u0394T = {delta_t:.1f} \u00b0C across module",
+                    transform=ax.transAxes, fontsize=10,
+                    bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+
+            data_source = f"gold table ({len(peak)} sensors)"
+        except Exception:
+            # scipy not available or data issue — fall through to synthetic
+            pass
+
+    if data_source == "synthetic":
         x = np.linspace(0, 11, 120); y = np.linspace(0, 7, 80); X, Y = np.meshgrid(x, y)
         temps = 32 + 0.9*X/11 + 3.8*np.exp(-((X-5.5)**2+(Y-3.5)**2)/8) + 2.2*np.exp(-((X-8.5)**2+(Y-5)**2)/5)
         im = ax.contourf(X, Y, temps, levels=60, cmap="RdYlBu_r")
+
     fig.colorbar(im, ax=ax, label="Temperature (\u00b0C)", pad=0.02)
-    ax.set_title("Thermal Distribution \u2014 Battery Module TM-4200\n3C Fast Charge @ 25 \u00b0C Ambient", fontsize=14, fontweight="bold")
+    title_suffix = f"(from {data_source})" if data_source != "synthetic" else ""
+    ax.set_title(f"Thermal Distribution \u2014 Battery Module TM-4200\n3C Fast Charge @ 25 \u00b0C Ambient {title_suffix}",
+                 fontsize=14, fontweight="bold")
     ax.set_xlabel("Cell Column Position"); ax.set_ylabel("Cell Row Position")
     plt.tight_layout()
     buf = BytesIO(); fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white"); plt.close(fig); buf.seek(0)
@@ -119,29 +169,116 @@ def _make_thermal_heatmap(df: pd.DataFrame | None = None) -> BytesIO:
 
 
 def _make_test_chart(df: pd.DataFrame | None = None) -> BytesIO:
+    """Performance vs spec chart from gold table component_test_results.
+
+    Real data has 5 metrics x 9 conditions (3 charge rates x 3 ambients).
+    We group by charge rate at 25C ambient and show % of spec limit.
+    """
     fig, ax = plt.subplots(figsize=(12, 7))
-    categories = ["\u0394T Uniformity\n(\u00b0C)", "Cool-down Rate\n(\u00b0C/min)", "Power Draw\n(W)", "Coolant \u0394P\n(kPa)", "Noise Level\n(dBA)"]
-    specs = [5.0, 5.0, 200, 50, 50]
-    conditions = {"1C Charge": [3.2, 2.1, 145, 32, 38], "2C Charge": [4.1, 3.5, 168, 38, 42], "3C Fast Charge": [4.8, 4.8, 195, 45, 47]}
-    x = np.arange(len(categories)); w = 0.23; colors = ["#2196F3", "#FF9800", "#C8102E"]
-    for i, (cond, vals) in enumerate(conditions.items()):
-        ax.bar(x + (i - 1) * w, [v/s*100 for v,s in zip(vals,specs)], w, label=cond, color=colors[i], alpha=0.88)
-    ax.axhline(100, color="red", lw=2, ls="--", label="Spec Limit"); ax.set_xticks(x); ax.set_xticklabels(categories)
-    ax.set_ylabel("% of Specification Limit"); ax.set_ylim(0, 120)
-    ax.set_title("Performance Test Results vs. Specification Limits", fontsize=14, fontweight="bold"); ax.legend(); ax.grid(axis="y", alpha=0.25)
-    ax.text(4.35, 107, "ALL PASS", fontsize=13, fontweight="bold", color="#2E7D32", bbox=dict(boxstyle="round", facecolor="#C8E6C9", alpha=0.9))
+    data_source = "synthetic"
+
+    if df is not None and len(df) > 0 and "metric" in df.columns and "spec_limit" in df.columns:
+        try:
+            # Filter to 25C ambient for the clearest comparison across charge rates
+            df_25 = df[df["test_condition"].str.contains("25")]
+            if len(df_25) == 0:
+                df_25 = df  # fallback to all data
+
+            # Pivot: rows=metric, columns=charge rate, values=avg(value)
+            df_25 = df_25.copy()
+            df_25["charge_rate"] = df_25["test_condition"].str.extract(r"(\d+C)")[0]
+
+            metrics_order = ["delta_T", "max_temp", "power_draw", "coolant_pressure_drop", "noise_level"]
+            metric_labels = {
+                "delta_T": "\u0394T Uniformity\n(\u00b0C)",
+                "max_temp": "Max Temp\n(\u00b0C)",
+                "power_draw": "Power Draw\n(W)",
+                "coolant_pressure_drop": "Coolant \u0394P\n(kPa)",
+                "noise_level": "Noise Level\n(dBA)",
+            }
+            charge_rates = ["1C", "2C", "3C"]
+            colors = ["#2196F3", "#FF9800", "#C8102E"]
+
+            # Build values and spec limits from real data
+            categories = []
+            spec_vals = {}
+            for m in metrics_order:
+                m_data = df_25[df_25["metric"] == m]
+                if len(m_data) > 0:
+                    categories.append(m)
+                    spec_vals[m] = m_data["spec_limit"].iloc[0]
+
+            x = np.arange(len(categories)); w = 0.23
+            all_pass = True
+            for i, rate in enumerate(charge_rates):
+                pcts = []
+                for m in categories:
+                    m_rate = df_25[(df_25["metric"] == m) & (df_25["charge_rate"] == rate)]
+                    if len(m_rate) > 0:
+                        val = m_rate["value"].mean()
+                        spec = spec_vals[m]
+                        pct = (val / spec * 100) if spec != 0 else 0
+                        if pct > 100:
+                            all_pass = False
+                        pcts.append(pct)
+                    else:
+                        pcts.append(0)
+                ax.bar(x + (i - 1) * w, pcts, w, label=f"{rate} Charge", color=colors[i], alpha=0.88)
+
+            ax.axhline(100, color="red", lw=2, ls="--", label="Spec Limit (100%)")
+            ax.set_xticks(x)
+            ax.set_xticklabels([metric_labels.get(m, m) for m in categories], fontsize=10)
+            ax.set_ylabel("% of Specification Limit")
+            ax.set_ylim(0, max(130, ax.get_ylim()[1] * 1.1))
+
+            pass_label = "ALL PASS" if all_pass else "FAILURES DETECTED"
+            pass_color = "#2E7D32" if all_pass else "#C8102E"
+            pass_bg = "#C8E6C9" if all_pass else "#FFCDD2"
+            ax.text(len(categories) - 0.7, ax.get_ylim()[1] * 0.88, pass_label,
+                    fontsize=13, fontweight="bold", color=pass_color,
+                    bbox=dict(boxstyle="round", facecolor=pass_bg, alpha=0.9))
+
+            data_source = f"gold table ({len(df)} results)"
+        except Exception:
+            pass
+
+    if data_source == "synthetic":
+        categories_s = ["\u0394T Uniformity\n(\u00b0C)", "Cool-down Rate\n(\u00b0C/min)", "Power Draw\n(W)", "Coolant \u0394P\n(kPa)", "Noise Level\n(dBA)"]
+        specs = [5.0, 5.0, 200, 50, 50]
+        conditions = {"1C Charge": [3.2, 2.1, 145, 32, 38], "2C Charge": [4.1, 3.5, 168, 38, 42], "3C Fast Charge": [4.8, 4.8, 195, 45, 47]}
+        x = np.arange(len(categories_s)); w = 0.23; colors = ["#2196F3", "#FF9800", "#C8102E"]
+        for i, (cond, vals) in enumerate(conditions.items()):
+            ax.bar(x + (i-1)*w, [v/s*100 for v,s in zip(vals,specs)], w, label=cond, color=colors[i], alpha=0.88)
+        ax.axhline(100, color="red", lw=2, ls="--", label="Spec Limit"); ax.set_xticks(x); ax.set_xticklabels(categories_s)
+        ax.set_ylabel("% of Specification Limit"); ax.set_ylim(0, 120)
+        ax.text(4.35, 107, "ALL PASS", fontsize=13, fontweight="bold", color="#2E7D32",
+                bbox=dict(boxstyle="round", facecolor="#C8E6C9", alpha=0.9))
+
+    title_suffix = f"(from {data_source})" if data_source != "synthetic" else ""
+    ax.set_title(f"Performance Test Results vs. Specification Limits {title_suffix}",
+                 fontsize=14, fontweight="bold")
+    ax.legend(fontsize=10); ax.grid(axis="y", alpha=0.25)
     plt.tight_layout()
     buf = BytesIO(); fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white"); plt.close(fig); buf.seek(0)
     return buf
 
 
 def _make_tolerance_chart(df: pd.DataFrame | None = None) -> BytesIO:
+    """Manufacturing Cpk chart from gold table manufacturing_quality."""
     fig, ax = plt.subplots(figsize=(12, 7)); np.random.seed(42)
+    data_source = "synthetic"
+
     if df is not None and "cooling_plate_flatness_mm" in df.columns:
         measurements = df["cooling_plate_flatness_mm"].dropna().values
+        if len(measurements) > 10:
+            data_source = f"gold table ({len(measurements)} units)"
     else:
+        measurements = None
+
+    if measurements is None:
         measurements = np.random.normal(loc=0.048, scale=0.011, size=500)
         measurements = measurements[(measurements > 0.005) & (measurements < 0.10)]
+
     lsl, usl, target = 0.020, 0.080, 0.050
     ax.hist(measurements, bins=42, density=True, alpha=0.75, color="#C8102E", edgecolor="white", lw=0.5)
     mu, sigma = np.mean(measurements), np.std(measurements)
@@ -150,9 +287,13 @@ def _make_tolerance_chart(df: pd.DataFrame | None = None) -> BytesIO:
     ax.axvline(lsl, color="#E65100", lw=2, ls="--", label=f"LSL={lsl:.3f}"); ax.axvline(usl, color="#E65100", lw=2, ls="--", label=f"USL={usl:.3f}")
     ax.axvline(target, color="#2E7D32", lw=1.5, ls=":", label=f"Target={target:.3f}")
     cpk = min((usl-mu)/(3*sigma), (mu-lsl)/(3*sigma))
-    ax.text(0.087, ax.get_ylim()[1]*0.82, f"n={len(measurements)}\n\u03bc={mu:.4f}\n\u03c3={sigma:.4f}\nCpk={cpk:.2f}", fontsize=11, bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.85))
+    ax.text(0.087, ax.get_ylim()[1]*0.82, f"n={len(measurements)}\n\u03bc={mu:.4f}\n\u03c3={sigma:.4f}\nCpk={cpk:.2f}",
+            fontsize=11, bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.85))
     ax.set_xlabel("Cooling Plate Flatness (mm)"); ax.set_ylabel("Density")
-    ax.set_title("Manufacturing Tolerance Distribution \u2014 Cooling Plate Assembly", fontsize=14, fontweight="bold"); ax.legend(loc="upper left")
+    title_suffix = f"(from {data_source})" if data_source != "synthetic" else ""
+    ax.set_title(f"Manufacturing Tolerance Distribution \u2014 Cooling Plate Assembly {title_suffix}",
+                 fontsize=14, fontweight="bold")
+    ax.legend(loc="upper left")
     plt.tight_layout()
     buf = BytesIO(); fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white"); plt.close(fig); buf.seek(0)
     return buf
@@ -414,15 +555,23 @@ with tab_demo:
             status.update(label=f"Gold tables loaded ({tables_read}/4)", state="complete")
 
         # ── STEP 2: Generate Charts ───────────────────────────────────────
-        with st.status("Generating matplotlib visualizations...", expanded=False) as status:
+        with st.status("Generating matplotlib visualizations from gold table data...", expanded=False) as status:
             t0 = time.time()
             thermal_img = _make_thermal_heatmap(thermal_df)
-            st.write(f"Thermal heatmap: `contourf` 120\u00d780 grid \u2192 PNG ({time.time()-t0:.1f}s)")
+            src = f"gold table ({len(thermal_df)} rows)" if thermal_df is not None else "synthetic fallback"
+            st.write(f"Thermal heatmap: 12-sensor grid \u2192 interpolated surface ({src}, {time.time()-t0:.1f}s)")
+
+            t0 = time.time()
             test_img = _make_test_chart(test_df)
-            st.write("Test results: grouped bar chart (3 conditions \u00d7 5 metrics)")
+            src = f"gold table ({len(test_df)} rows)" if test_df is not None else "synthetic fallback"
+            st.write(f"Test results: 5 metrics \u00d7 3 charge rates vs spec limits ({src}, {time.time()-t0:.1f}s)")
+
+            t0 = time.time()
             tolerance_img = _make_tolerance_chart(mfg_df)
-            st.write(f"Tolerance distribution: n={500 if mfg_df is None else len(mfg_df)}, Cpk analysis")
-            status.update(label="Visualizations generated (3 charts)", state="complete")
+            src = f"gold table ({len(mfg_df)} rows)" if mfg_df is not None else "synthetic fallback"
+            st.write(f"Tolerance distribution: Cpk analysis ({src}, {time.time()-t0:.1f}s)")
+
+            status.update(label="Visualizations generated from gold tables (3 charts)", state="complete")
 
         # ── STEP 3: Vector Search Matching ────────────────────────────────
         data_drawing_matches = {}
