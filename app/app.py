@@ -314,9 +314,80 @@ tab_arch, tab_demo, tab_upload = st.tabs([
 # ========================= ARCHITECTURE TAB ================================
 with tab_arch:
     st.header("System Architecture")
-    st.markdown("Technical overview of the AI-powered PPTX generation pipeline for LatentView review.")
+    st.markdown("Technical overview for LatentView review \u2014 comparing their 6-month proposal to this working prototype.")
 
-    st.subheader("End-to-End Pipeline")
+    # -- LatentView's proposal --
+    st.subheader("LatentView's Proposal (6 Months, 14 Use Cases SOW)")
+
+    lv_cols = st.columns(2)
+    lv_problem_path = Path(__file__).parent / "latentview_problem.png"
+    lv_arch_path = Path(__file__).parent / "latentview_arch.png"
+
+    with lv_cols[0]:
+        if lv_problem_path.exists():
+            st.image(str(lv_problem_path), caption="LatentView: Problem Statement", use_container_width=True)
+        st.markdown("""
+**Problem they identified:**
+1. ~60 hours per milestone gate presentation (PKD, RKD, DR, SQA)
+2. 70-90% of time on copy-paste
+3. Data scattered across Jira, Confluence, Bitbucket, Excel, SHM
+4. Inconsistent reporting across teams
+5. Engineers compiling data instead of analyzing
+        """)
+    with lv_cols[1]:
+        if lv_arch_path.exists():
+            st.image(str(lv_arch_path), caption="LatentView: Implementation Architecture", use_container_width=True)
+        lv_solution_path = Path(__file__).parent / "latentview_solution.png"
+        if lv_solution_path.exists():
+            st.image(str(lv_solution_path), caption="LatentView: Solution Overview", use_container_width=True)
+
+    # -- Side-by-side comparison --
+    st.subheader("LatentView (6 months) vs. This Prototype (1 afternoon)")
+
+    compare_data = {
+        "Component": [
+            "Data Ingestion", "Data Processing", "AI / NLP Layer",
+            "Drawing Analysis", "PPT Generation", "Gate Review Types",
+            "Multi-Source (Jira, Confluence)", "Distribution", "Deployment",
+        ],
+        "LatentView Proposal": [
+            "Azure Data Factory custom pipelines",
+            "Medallion (Bronze/Silver/Gold) in Lakehouse",
+            "Basic NLP + LLM summarization",
+            "Not in scope",
+            "Python templates + Pandas + python-pptx",
+            "PKD, RKD, DR, SQA (manual templates)",
+            "Custom Python API connectors per source",
+            "SharePoint / Email / Teams",
+            "6 months, dedicated team",
+        ],
+        "This Prototype": [
+            "Lakeflow Connect (or CSV \u2192 Delta for demo)",
+            "Gold Delta tables in Unity Catalog",
+            "ai_query(claude-sonnet-4-6) via Foundation Model API",
+            "Claude Vision + Vector Search (semantic matching)",
+            "python-pptx + AI-generated content + DENSO branding",
+            "PKD / RKD / DR / SQA selector (data-driven filtering)",
+            "Gold tables: jira_issues (40) + confluence_pages (15)",
+            "Download / SharePoint / Email / Teams buttons",
+            "DABs bundle deploy (one command)",
+        ],
+        "Advantage": [
+            "Platform-native vs custom ETL",
+            "Same approach",
+            "Multimodal AI vs basic NLP",
+            "We have this, they don't",
+            "AI-generated vs rigid templates",
+            "Same gate types, dynamic filtering",
+            "Same sources, less code",
+            "Same channels",
+            "Afternoon vs 6 months",
+        ],
+    }
+    st.dataframe(pd.DataFrame(compare_data), use_container_width=True, hide_index=True)
+
+    # -- Our architecture --
+    st.subheader("Our Implementation Architecture")
     st.code("""
     Engineering Drawings (PNG)          Gold Delta Tables (CSV -> Delta)
     uploaded or from UC Volume          thermal_sensors, test_results,
@@ -369,7 +440,7 @@ with tab_arch:
 | **Unity Catalog** | `{CATALOG}.{SCHEMA}` |
 | **UC Volume** | `engineering_drawings` (patent PNGs) |
 | **SQL Warehouse** | `{WAREHOUSE[:16]}...` (Serverless) |
-| **Delta Tables** | 6 gold tables + 1 analysis table |
+| **Delta Tables** | 9 gold tables (incl. Jira, Confluence) |
 | **Vector Search** | Delta Sync index on `drawing_analysis` |
 | **Databricks App** | Streamlit, MEDIUM compute |
         """)
@@ -389,29 +460,55 @@ with tab_arch:
     table_data = {
         "Table": [
             "thermal_sensor_readings", "component_test_results", "manufacturing_quality",
-            "durability_cycling", "component_specs", "drawing_metadata", "drawing_analysis",
+            "durability_cycling", "component_specs",
+            "jira_issues", "confluence_pages",
+            "drawing_metadata", "drawing_analysis",
         ],
-        "Rows": ["1,440", "90", "500", "2,000", "7", "22", "22+"],
+        "Rows": ["1,440", "90", "500", "2,000", "7", "40", "15", "22", "22+"],
+        "Source": [
+            "Sensor DAQ", "Test lab", "QC inspection", "Durability lab", "BOM/PLM",
+            "Jira (EVTM project)", "Confluence (EVTM space)",
+            "Patent database", "Claude Vision + embeddings",
+        ],
         "Key Columns": [
-            "timestamp, sensor_id, temperature_c, cell_position_row/col",
-            "test_id, component, test_condition, metric, value, spec_limit, pass_fail",
-            "unit_serial, cooling_plate_flatness_mm, channel_depth/width, Cpk",
-            "cycle_number, min/max_temp, coolant_flow_rate, pressure_drop",
-            "Component, Part_Number, Material, Weight_g, Tolerance",
+            "timestamp, sensor_id, temperature_c, cell_position",
+            "test_condition, metric, value, spec_limit, pass_fail",
+            "cooling_plate_flatness_mm, channel_depth, Cpk metrics",
+            "cycle_number, min/max_temp, flow_rate, pressure_drop",
+            "Part_Number, Material, Weight_g, Tolerance",
+            "issue_key, summary, status, priority, component, gate_review",
+            "title, status, content_summary, labels, gate_review",
             "filename, patent, title, category, description",
-            "filename, extracted_components, system_area, embedding (1024-dim)",
+            "extracted_components, system_area, data_keywords, embedding",
         ],
-        "Purpose": [
-            "Thermal FEA heatmap + time-series charts",
-            "Performance vs spec bar charts + tables",
-            "Cpk tolerance distribution analysis",
-            "Durability trend analysis",
-            "Component spec tables in PPTX",
-            "Drawing catalog for UI selection",
-            "Vision-extracted metadata + vectors for semantic search",
+        "Gate Reviews": [
+            "DR, RKD", "DR, RKD", "SQA, RKD", "DR, RKD", "SQA, PKD",
+            "All (filtered)", "All (filtered)", "DR", "DR",
         ],
     }
     st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
+
+    st.subheader("Gate Review Types")
+    gate_data = {
+        "Gate": ["PKD", "RKD", "DR", "SQA"],
+        "Full Name": [
+            "Product Key Decision", "Release Key Decision",
+            "Design Review", "Supplier Quality Assurance",
+        ],
+        "Focus": [
+            "Requirements, design specs, risk assessment",
+            "Test results, quality metrics, open defects",
+            "Architecture, thermal analysis, drawings",
+            "Manufacturing quality, Cpk, supplier audits",
+        ],
+        "Primary Data Sources": [
+            "component_specs, jira (risks), confluence (reqs docs)",
+            "test_results, manufacturing, jira (defects), durability",
+            "thermal_sensors, drawings, test_results, architecture",
+            "manufacturing_quality, component_specs, confluence (audits)",
+        ],
+    }
+    st.dataframe(pd.DataFrame(gate_data), use_container_width=True, hide_index=True)
 
     st.subheader("Vector Search Pipeline")
     st.markdown("""
