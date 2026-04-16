@@ -1,0 +1,8 @@
+Component,Part Number,Material,Weight (g),Tolerance,Status
+Cooling Plate Assy,CP-4200-A1,A6063 Aluminum,4250,±0.05 mm,Validated
+Coolant Pump,PM-DC-0812,PPS / Ceramic,680,±0.5 L/min,Validated
+ECU Module,ECU-TM42-R2,FR-4 / Al Housing,320,—,Validated
+Expansion Valve,EXV-3200,Brass / PTFE,190,±2 %,Validated
+Radiator Assy,RAD-4200-DF,A3003 Aluminum,5100,±0.10 mm,Validated
+TIM Pad (x96),TIM-HTC-08,Silicone / BN,15,±0.3 W/mK,Qualified
+NTC Sensor (x12),NTC-103-AT,Glass / Epoxy,8,±0.5 °C,Qualified

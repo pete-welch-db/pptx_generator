@@ -1,0 +1,64 @@
+bundle:
+  name: denso_pptx_generator
+
+variables:
+  catalog:
+    description: "Unity Catalog name (e.g. my_workspace_catalog)"
+  warehouse_id:
+    description: "SQL Warehouse ID for AI functions"
+
+variables:
+  workspace_url:
+    description: "Databricks workspace URL"
+
+workspace:
+  host: ${var.workspace_url}
+
+resources:
+  apps:
+    denso-pptx-generator:
+      name: denso-pptx-generator
+      description: "DENSO AI-Powered Engineering PPTX Generator"
+      source_code_path: ./app
+      config:
+        - name: CATALOG
+          value: ${var.catalog}
+        - name: SCHEMA
+          value: denso_demo
+        - name: DATABRICKS_WAREHOUSE_ID
+          value: ${var.warehouse_id}
+
+  jobs:
+    setup_gold_tables:
+      name: "[DENSO Demo] Setup Gold Tables & Drawings"
+      job_clusters:
+        - job_cluster_key: demo_cluster
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: "i3.xlarge"
+            num_workers: 0
+            spark_conf:
+              "spark.master": "local[*]"
+      tasks:
+        - task_key: setup_catalog
+          job_cluster_key: demo_cluster
+          notebook_task:
+            notebook_path: ./notebooks/01_setup_catalog
+            base_parameters:
+              catalog: ${var.catalog}
+        - task_key: load_gold_data
+          depends_on:
+            - task_key: setup_catalog
+          job_cluster_key: demo_cluster
+          notebook_task:
+            notebook_path: ./notebooks/02_load_gold_tables
+            base_parameters:
+              catalog: ${var.catalog}
+        - task_key: load_drawings
+          depends_on:
+            - task_key: setup_catalog
+          job_cluster_key: demo_cluster
+          notebook_task:
+            notebook_path: ./notebooks/03_load_drawings
+            base_parameters:
+              catalog: ${var.catalog}
