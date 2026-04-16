@@ -63,7 +63,7 @@ Technical but accessible tone for the engineering review board."""
 
 def generate_content(
     project_context: dict | None = None,
-    model: str = "databricks-meta-llama-3-3-70b-instruct",
+    model: str = "databricks-claude-sonnet-4-6",
 ) -> dict:
     """Generate presentation content using ai_query().
 
@@ -102,7 +102,7 @@ def generate_content(
 # Drawing analysis via ai_query with vision model
 # ---------------------------------------------------------------------------
 
-def analyze_drawing(image_bytes: bytes, model: str = "databricks-meta-llama-3-2-11b-vision-instruct") -> str:
+def analyze_drawing(image_bytes: bytes, model: str = "databricks-claude-sonnet-4-6") -> str:
     """Analyze an engineering drawing using a vision-capable model.
 
     Uses the Foundation Model API serving endpoint for multimodal input.

@@ -7,15 +7,8 @@ command:
 
 env:
   - name: CATALOG
-    description: "Unity Catalog name (e.g. my_workspace_catalog)"
+    value: "serverless_sandbox_hsze05_catalog"
   - name: SCHEMA
-    description: "Schema name for demo tables"
     value: "denso_demo"
-
-resources:
-  - name: sql-warehouse
-    sql_warehouse:
-      permission: CAN_USE
-  - name: serving-endpoint
-    serving_endpoint:
-      permission: CAN_QUERY
+  - name: DATABRICKS_WAREHOUSE_ID
+    value: "2e69b709a9fe757a"
