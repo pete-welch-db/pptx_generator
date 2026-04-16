@@ -314,10 +314,10 @@ tab_arch, tab_demo, tab_upload = st.tabs([
 # ========================= ARCHITECTURE TAB ================================
 with tab_arch:
     st.header("System Architecture")
-    st.markdown("Technical overview for LatentView review \u2014 comparing their 6-month proposal to this working prototype.")
+    st.markdown("How Databricks platform capabilities can accelerate LatentView's delivery \u2014 faster, better, cheaper.")
 
     # -- LatentView's proposal --
-    st.subheader("LatentView's Proposal (6 Months, 14 Use Cases SOW)")
+    st.subheader("LatentView's Current Scope")
 
     lv_cols = st.columns(2)
     lv_problem_path = Path(__file__).parent / "latentview_problem.png"
@@ -341,8 +341,14 @@ with tab_arch:
         if lv_solution_path.exists():
             st.image(str(lv_solution_path), caption="LatentView: Solution Overview", use_container_width=True)
 
-    # -- Side-by-side comparison --
-    st.subheader("LatentView (6 months) vs. This Prototype (1 afternoon)")
+    # -- Platform accelerators --
+    st.subheader("Platform Capabilities That Accelerate Delivery")
+    st.markdown("""
+Many of the components LatentView is planning to build from scratch now exist as
+**managed Databricks services**. Adopting these reduces custom code, shortens timelines,
+and lowers maintenance burden \u2014 letting LatentView focus on DENSO-specific business logic
+instead of infrastructure.
+    """)
 
     compare_data = {
         "Component": [
@@ -350,44 +356,44 @@ with tab_arch:
             "Drawing Analysis", "PPT Generation", "Gate Review Types",
             "Multi-Source (Jira, Confluence)", "Distribution", "Deployment",
         ],
-        "LatentView Proposal": [
+        "Current Plan": [
             "Azure Data Factory custom pipelines",
             "Medallion (Bronze/Silver/Gold) in Lakehouse",
-            "Basic NLP + LLM summarization",
-            "Not in scope",
+            "NLP + LLM summarization",
+            "Not yet scoped",
             "Python templates + Pandas + python-pptx",
-            "PKD, RKD, DR, SQA (manual templates)",
+            "PKD, RKD, DR, SQA (per-template)",
             "Custom Python API connectors per source",
             "SharePoint / Email / Teams",
-            "6 months, dedicated team",
+            "Multi-sprint delivery",
         ],
-        "This Prototype": [
-            "Lakeflow Connect (or CSV \u2192 Delta for demo)",
-            "Gold Delta tables in Unity Catalog",
-            "ai_query(claude-sonnet-4-6) via Foundation Model API",
-            "Claude Vision + Vector Search (semantic matching)",
-            "python-pptx + AI-generated content + DENSO branding",
-            "PKD / RKD / DR / SQA selector (data-driven filtering)",
-            "Gold tables: jira_issues (40) + confluence_pages (15)",
-            "Download / SharePoint / Email / Teams buttons",
-            "DABs bundle deploy (one command)",
+        "Platform Accelerator": [
+            "Lakeflow Connect \u2014 managed connectors, no custom ETL",
+            "Unity Catalog gold tables \u2014 same pattern, built-in governance",
+            "ai_query() + Foundation Model API \u2014 managed, pay-per-token, multimodal",
+            "Claude Vision + Vector Search \u2014 semantic drawing-to-data linking",
+            "python-pptx + ai_query() \u2014 AI-generated content, not just templates",
+            "Data-driven gate selector \u2014 one app, filtered by gate type",
+            "Lakeflow Connect for Jira/Confluence \u2014 or lightweight API notebooks",
+            "Databricks Apps + webhooks \u2014 same channels, platform-hosted",
+            "DABs (Databricks Asset Bundles) \u2014 one-command deploy + CI/CD",
         ],
-        "Advantage": [
-            "Platform-native vs custom ETL",
-            "Same approach",
-            "Multimodal AI vs basic NLP",
-            "We have this, they don't",
-            "AI-generated vs rigid templates",
-            "Same gate types, dynamic filtering",
-            "Same sources, less code",
-            "Same channels",
-            "Afternoon vs 6 months",
+        "Impact": [
+            "Weeks \u2192 days",
+            "Already aligned",
+            "Custom NLP code \u2192 SQL function call",
+            "New capability (not in original scope)",
+            "Rigid templates \u2192 dynamic AI content",
+            "4 codepaths \u2192 1 parameterized app",
+            "Custom connectors \u2192 managed pipelines",
+            "Same outcome, less glue code",
+            "Faster iteration, reproducible deploys",
         ],
     }
     st.dataframe(pd.DataFrame(compare_data), use_container_width=True, hide_index=True)
 
-    # -- Our architecture --
-    st.subheader("Our Implementation Architecture")
+    # -- Reference implementation --
+    st.subheader("Reference Implementation (This Prototype)")
     st.code("""
     Engineering Drawings (PNG)          Gold Delta Tables (CSV -> Delta)
     uploaded or from UC Volume          thermal_sensors, test_results,
