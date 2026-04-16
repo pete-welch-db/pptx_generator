@@ -479,6 +479,35 @@ pptx_generator/
 
 
 # ========================= GENERATE TAB ====================================
+
+# Gate review type definitions
+GATE_REVIEWS = {
+    "DR": {
+        "name": "Design Review",
+        "description": "Technical deep dive — architecture, thermal analysis, engineering drawings",
+        "sections": ["executive_summary", "architecture", "drawings", "thermal", "testing", "findings"],
+        "data_focus": "Design verification and technical performance",
+    },
+    "PKD": {
+        "name": "Product Key Decision",
+        "description": "Go/no-go for design phase — requirements, design specs, risk assessment",
+        "sections": ["executive_summary", "architecture", "drawings", "jira_risks", "confluence_docs", "findings"],
+        "data_focus": "Requirements compliance and risk assessment",
+    },
+    "RKD": {
+        "name": "Release Key Decision",
+        "description": "Go/no-go for release — test results, quality metrics, open defects",
+        "sections": ["executive_summary", "testing", "manufacturing", "jira_defects", "findings"],
+        "data_focus": "Test completion and quality readiness",
+    },
+    "SQA": {
+        "name": "Supplier Quality Assurance",
+        "description": "Supplier readiness — manufacturing quality, Cpk, component specs, audit results",
+        "sections": ["executive_summary", "manufacturing", "specs", "confluence_audits", "findings"],
+        "data_focus": "Manufacturing process capability and supplier qualification",
+    },
+}
+
 with tab_demo:
     st.subheader("EV Battery Thermal Management System \u2014 Model TM-4200")
 
@@ -489,6 +518,21 @@ with tab_demo:
     with col2:
         st.markdown("**Cells:** 96-cell module (8\u00d712)  |  **Cooling:** 4.2 kW")
         st.markdown("**Target \u0394T:** < 5.0 \u00b0C  |  **Flow:** 8 L/min")
+
+    # -- Gate review selector --
+    st.markdown("---")
+    st.markdown("#### Gate Review Type")
+    gate_cols = st.columns([2, 3])
+    with gate_cols[0]:
+        gate_type = st.selectbox(
+            "Select milestone gate review",
+            options=list(GATE_REVIEWS.keys()),
+            format_func=lambda k: f"{k} \u2014 {GATE_REVIEWS[k]['name']}",
+            help="Each gate type pulls different data and generates a tailored presentation",
+        )
+    with gate_cols[1]:
+        gate = GATE_REVIEWS[gate_type]
+        st.info(f"**{gate['name']}:** {gate['description']}")
 
     # -- Drawing selection --
     st.markdown("---")
@@ -526,10 +570,10 @@ with tab_demo:
 
     if st.button("Generate Presentation", key="demo_gen", type="primary"):
 
-        # ── STEP 1: Read Gold Tables ──────────────────────────────────────
-        with st.status("Reading gold Delta tables...", expanded=True) as status:
-            st.write(f"`USE CATALOG {CATALOG}; USE SCHEMA {SCHEMA};`")
-            thermal_df = mfg_df = test_df = specs_df = None
+        # ── STEP 1: Read Gold Tables + Jira + Confluence ─────────────────
+        with st.status(f"Reading gold tables for {gate_type} gate review...", expanded=True) as status:
+            st.write(f"`USE CATALOG {CATALOG}; USE SCHEMA {SCHEMA};` | Gate: **{gate_type}** ({gate['name']})")
+            thermal_df = mfg_df = test_df = specs_df = jira_df = confluence_df = None
             tables_read = 0
             if IN_DATABRICKS and data_loader:
                 for tbl, loader in [
@@ -537,22 +581,27 @@ with tab_demo:
                     ("manufacturing_quality", lambda: data_loader.read_manufacturing_quality()),
                     ("component_test_results", lambda: data_loader.read_test_results()),
                     ("component_specs", lambda: data_loader.read_component_specs()),
+                    ("jira_issues", lambda: data_loader.read_jira_issues(gate_type)),
+                    ("confluence_pages", lambda: data_loader.read_confluence_pages(gate_type)),
                 ]:
                     t0 = time.time()
                     try:
                         df = loader()
                         elapsed = time.time() - t0
-                        st.write(f"`SELECT * FROM {CATALOG}.{SCHEMA}.{tbl}` \u2192 **{len(df):,} rows** ({elapsed:.1f}s)")
+                        filter_note = f" (filtered: gate_review LIKE '%{gate_type}%')" if tbl in ("jira_issues", "confluence_pages") else ""
+                        st.write(f"`SELECT * FROM {CATALOG}.{SCHEMA}.{tbl}`{filter_note} \u2192 **{len(df):,} rows** ({elapsed:.1f}s)")
                         if tbl == "thermal_sensor_readings": thermal_df = df
                         elif tbl == "manufacturing_quality": mfg_df = df
                         elif tbl == "component_test_results": test_df = df
                         elif tbl == "component_specs": specs_df = df
+                        elif tbl == "jira_issues": jira_df = df
+                        elif tbl == "confluence_pages": confluence_df = df
                         tables_read += 1
                     except Exception as e:
                         st.write(f"`{tbl}` \u274c {e}")
             else:
                 st.write("Local mode \u2014 using mock data")
-            status.update(label=f"Gold tables loaded ({tables_read}/4)", state="complete")
+            status.update(label=f"Data loaded ({tables_read}/6 tables, gate={gate_type})", state="complete")
 
         # ── STEP 2: Generate Charts ───────────────────────────────────────
         with st.status("Generating matplotlib visualizations from gold table data...", expanded=False) as status:
@@ -715,7 +764,60 @@ with tab_demo:
             if specs_df is not None: builder.add_table_slide("Component Specifications", specs_df)
             st.write("Manufacturing Readiness section (Cpk chart + specs table)")
 
-            builder.add_section_slide("Findings & Recommendations", number=section_offset+3)
+            # Jira issues slide (if data available and relevant to gate type)
+            if jira_df is not None and len(jira_df) > 0:
+                builder.add_section_slide("Open Issues & Risks", number=section_offset+3)
+                # Summary metrics
+                open_count = len(jira_df[jira_df["status"].isin(["Open", "In Progress", "Blocked"])]) if "status" in jira_df.columns else 0
+                critical_count = len(jira_df[jira_df["priority"] == "Critical"]) if "priority" in jira_df.columns else 0
+                resolved_count = len(jira_df[jira_df["status"].isin(["Resolved", "Closed"])]) if "status" in jira_df.columns else 0
+                jira_bullets = [
+                    f"{len(jira_df)} total issues tracked for {gate_type} gate review",
+                    f"{open_count} open / in-progress | {resolved_count} resolved / closed",
+                    f"{critical_count} critical priority items requiring attention",
+                ]
+                # Add top open issues
+                if "status" in jira_df.columns:
+                    open_issues = jira_df[jira_df["status"].isin(["Open", "In Progress", "Blocked", "Critical"])]
+                    if "priority" in jira_df.columns:
+                        open_issues = open_issues.sort_values("priority")
+                    for _, row in open_issues.head(5).iterrows():
+                        key = row.get("issue_key", "")
+                        summary = row.get("summary", "")
+                        pri = row.get("priority", "")
+                        status_val = row.get("status", "")
+                        jira_bullets.append(f"[{key}] {summary} ({pri} / {status_val})")
+                builder.add_content_slide(
+                    f"Jira Issues \u2014 {gate_type} Gate Review",
+                    body=f"Source: Jira project EVTM | Filtered by gate_review = '{gate_type}'",
+                    bullets=jira_bullets,
+                )
+                # Jira table
+                display_cols = [c for c in ["issue_key", "summary", "status", "priority", "component", "assignee"] if c in jira_df.columns]
+                if display_cols:
+                    builder.add_table_slide(f"Issue Tracker ({gate_type})", jira_df[display_cols].head(12))
+                st.write(f"Jira Issues section ({len(jira_df)} issues for {gate_type})")
+                jira_offset = 2
+            else:
+                jira_offset = 0
+
+            # Confluence documents slide
+            if confluence_df is not None and len(confluence_df) > 0:
+                builder.add_section_slide("Reference Documents", number=section_offset+3+jira_offset)
+                conf_bullets = [f"{len(confluence_df)} documents linked to {gate_type} gate review"]
+                for _, row in confluence_df.head(8).iterrows():
+                    title_val = row.get("title", "")
+                    page_status = row.get("status", "")
+                    labels = row.get("labels", "")
+                    conf_bullets.append(f"{title_val} [{page_status}] \u2014 {labels}")
+                builder.add_content_slide(
+                    f"Confluence Documents \u2014 {gate_type}",
+                    body=f"Source: Confluence space 'EVTM Engineering' | Filtered by gate_review = '{gate_type}'",
+                    bullets=conf_bullets,
+                )
+                st.write(f"Confluence Documents section ({len(confluence_df)} pages for {gate_type})")
+
+            builder.add_section_slide("Findings & Recommendations", number=section_offset+4+jira_offset)
             builder.add_content_slide("Key Findings", bullets=content["findings"])
             builder.add_content_slide("Recommendations", bullets=content["recommendations"])
             builder.add_content_slide("Next Steps", bullets=content["next_steps"])
@@ -723,15 +825,15 @@ with tab_demo:
 
             builder.add_closing_slide("Thank You", lines=[
                 "DENSO International America, Inc.", "Electrification Engineering Division",
-                f"Generated {date.today()} | AI-Powered by Databricks"])
+                f"{gate_type} Gate Review | Generated {date.today()} | AI-Powered by Databricks"])
 
             pptx_bytes = builder.save_bytes()
             total_slides = len(builder.prs.slides)
             st.write(f"**Total: {total_slides} slides** | {len(pptx_bytes.getvalue())/1024:.0f} KB")
-            status.update(label=f"PPTX assembled ({total_slides} slides)", state="complete")
+            status.update(label=f"PPTX assembled ({total_slides} slides, {gate_type} gate)", state="complete")
 
         # ── Result ────────────────────────────────────────────────────────
-        st.success(f"Presentation generated \u2014 {total_slides} slides")
+        st.success(f"{gate_type} Gate Review presentation generated \u2014 {total_slides} slides")
 
         st.markdown("#### Preview")
         c1, c2, c3 = st.columns(3)
@@ -740,12 +842,31 @@ with tab_demo:
         with c2: st.image(test_img, caption="Test Results", use_container_width=True)
         with c3: st.image(tolerance_img, caption="Manufacturing Quality", use_container_width=True)
 
-        st.download_button(
-            label="Download Presentation (.pptx)", data=pptx_bytes,
-            file_name=f"DENSO_TM4200_Review_{date.today():%Y%m%d}.pptx",
-            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            type="primary",
-        )
+        # ── Distribution ──────────────────────────────────────────────────
+        st.markdown("#### Distribution")
+        dist_cols = st.columns(4)
+        with dist_cols[0]:
+            st.download_button(
+                label="Download .pptx", data=pptx_bytes,
+                file_name=f"DENSO_{gate_type}_{date.today():%Y%m%d}.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                type="primary",
+            )
+        with dist_cols[1]:
+            if st.button("Upload to SharePoint", key="dist_sp"):
+                st.toast(f"Uploading {gate_type} review to SharePoint/EVTM/Gate Reviews/...", icon="\U0001f4e4")
+                time.sleep(1)
+                st.toast("Uploaded to: SharePoint > EVTM > Gate Reviews > TM-4200", icon="\u2705")
+        with dist_cols[2]:
+            if st.button("Email to Team", key="dist_email"):
+                st.toast("Sending to: amber.schultz@na.denso.com, brandon.knowles@na.denso.com + 3 others", icon="\U0001f4e7")
+                time.sleep(1)
+                st.toast(f"Email sent: '{gate_type} Gate Review - TM-4200 - {date.today()}'", icon="\u2705")
+        with dist_cols[3]:
+            if st.button("Post to Teams", key="dist_teams"):
+                st.toast("Posting to: Teams > EVTM Engineering > Gate Reviews", icon="\U0001f4ac")
+                time.sleep(1)
+                st.toast("Posted with auto-generated summary + download link", icon="\u2705")
 
 
 # ========================= UPLOAD TAB ======================================

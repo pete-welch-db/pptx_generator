@@ -78,6 +78,24 @@ def read_component_specs() -> pd.DataFrame:
         return pd.read_sql(f"SELECT * FROM {_fqn('component_specs')}", conn)
 
 
+def read_jira_issues(gate_review: str | None = None) -> pd.DataFrame:
+    """Read Jira issues, optionally filtered by gate review type."""
+    where = ""
+    if gate_review:
+        where = f" WHERE gate_review LIKE '%{gate_review}%'"
+    with get_connection() as conn:
+        return pd.read_sql(f"SELECT * FROM {_fqn('jira_issues')}{where}", conn)
+
+
+def read_confluence_pages(gate_review: str | None = None) -> pd.DataFrame:
+    """Read Confluence pages, optionally filtered by gate review type."""
+    where = ""
+    if gate_review:
+        where = f" WHERE gate_review LIKE '%{gate_review}%'"
+    with get_connection() as conn:
+        return pd.read_sql(f"SELECT * FROM {_fqn('confluence_pages')}{where}", conn)
+
+
 def get_data_summary() -> dict:
     """Quick summary stats for the sidebar."""
     with get_connection() as conn:

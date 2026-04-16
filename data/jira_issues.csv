@@ -1,0 +1,41 @@
+issue_key,summary,status,priority,assignee,component,created_date,resolved_date,resolution,sprint,story_points,labels,gate_review
+EVTM-1001,Radiator mounting bracket stress exceeds allowable at 20G shock load,Resolved,Medium,Akiko Suzuki,Radiator,2026-02-14,2026-03-13,Fixed,Sprint 13,5,design;mechanical;thermal,PKD;RKD
+EVTM-1002,System-level COP drops below 2.8 at 45°C ambient condition,Resolved,Critical,James Park,System Integration,2026-04-10,2026-04-15,Duplicate,Sprint 14,2,design;electrical;mechanical;safety,SQA
+EVTM-1003,FEA thermal gradient exceeds 4°C across cooling plate surface at 3C charge,Resolved,High,Akiko Suzuki,Cooling Plate,2026-02-23,2026-03-21,Duplicate,Sprint 13,8,design;manufacturing;mechanical;thermal,PKD;RKD
+EVTM-1004,ECU firmware v2.3 watchdog timer reset during 3C charge,Open,Low,Sarah Mitchell,ECU,2026-03-28,,,Sprint 14,8,safety;software,DR
+EVTM-1005,Coolant pump connector seal fails IP67 splash test,Closed,High,Kenji Watanabe,Coolant Pump,2026-03-27,2026-04-14,Duplicate,Sprint 15,2,manufacturing;mechanical;quality,DR
+EVTM-1006,Harness routing interference with HV battery disconnect bracket,Resolved,High,Mika Ito,System Integration,2026-01-12,2026-01-29,Duplicate,Sprint 13,8,electrical;safety;software,DR;SQA
+EVTM-1007,Alternative TIM supplier qualification — Henkel vs Shin-Etsu comparison,Resolved,Low,Yuki Tanaka,TIM,2026-03-23,2026-04-07,Fixed,Sprint 15,1,manufacturing;thermal,SQA
+EVTM-1008,Coolant pressure sensor zero-point drift after vibration endurance,Blocked,Low,Emily Reeves,Sensors,2026-02-05,,,Sprint 13,13,electrical;quality,RKD
+EVTM-1009,Battery cell surface thermocouple adhesive fails above 70°C,Resolved,High,Mika Ito,Sensors,2026-01-09,2026-02-01,Fixed,Sprint 12,8,design;electrical;quality,RKD
+EVTM-1010,Fin density optimization needed to meet NVH targets at 4000 RPM fan speed,Closed,Medium,Kenji Watanabe,Radiator,2026-01-17,2026-03-02,Won't Fix,Sprint 15,2,design;mechanical;safety,PKD;RKD
+EVTM-1011,TIM compression set exceeds 25% after 90-day high-temp storage,Closed,High,Satoshi Kobayashi,TIM,2026-02-05,2026-02-19,Fixed,Sprint 15,13,design;quality;thermal,PKD
+EVTM-1012,Radiator core pressure drop 15% above target at 10 L/min,Resolved,Medium,Hiroshi Nakamura,Radiator,2026-03-29,2026-03-31,Fixed,Sprint 15,2,design;mechanical;thermal,PKD;RKD
+EVTM-1013,CAN bus message EVTM_TempReq drops frames under high bus load,Closed,Low,Akiko Suzuki,ECU,2026-02-23,2026-03-13,Won't Fix,Sprint 13,5,electrical;safety;software,RKD
+EVTM-1014,Surface roughness Ra > 1.6 µm on cooling plate mating face (Lot 22),Open,High,Emily Reeves,Cooling Plate,2026-01-12,,,Sprint 16,13,design;electrical;mechanical;thermal,DR
+EVTM-1015,Pump motor bearing life test shows 12% degradation at 8000 hrs,Resolved,Medium,Takeshi Yamamoto,Coolant Pump,2026-01-13,2026-02-22,Fixed,Sprint 12,8,manufacturing;mechanical;quality,RKD
+EVTM-1016,Refrigerant charge optimization for dual-mode heat pump / cooling,Open,Medium,Akiko Suzuki,System Integration,2026-02-07,,,Sprint 15,1,design;safety;thermal,SQA
+EVTM-1017,TIM pad delamination observed after 1500 thermal cycles,Resolved,High,Emily Reeves,TIM,2026-03-04,2026-04-14,Duplicate,Sprint 14,2,manufacturing;quality;thermal,PKD;SQA
+EVTM-1018,NTC thermistor B-constant tolerance causes ±1.2°C error at 60°C,Resolved,Low,Yuki Tanaka,Sensors,2026-01-25,2026-02-24,Duplicate,Sprint 16,2,electrical;quality,DR;SQA
+EVTM-1019,EXV coil resistance drift after 2000 thermal cycles,Closed,Medium,James Park,Expansion Valve,2026-02-10,2026-03-22,Fixed,Sprint 16,1,electrical;mechanical;thermal,DR;RKD
+EVTM-1020,Thermal interface material bulk resistance increases 18% post-aging,Closed,Medium,Akiko Suzuki,TIM,2026-02-16,2026-02-26,Fixed,Sprint 14,8,manufacturing;quality;thermal,PKD;SQA
+EVTM-1021,Full-vehicle thermal soak test shows 3-min delay to reach target temp,Open,High,Kyle Henderson,System Integration,2026-02-21,,,Sprint 16,13,design;safety;thermal,DR;SQA
+EVTM-1022,TIM outgassing VOC levels above DENSO DS-4501 limit,Closed,Medium,Hiroshi Nakamura,TIM,2026-01-31,2026-03-17,Fixed,Sprint 15,2,manufacturing;quality,DR;PKD
+EVTM-1023,Expansion valve superheat control oscillates ±3°C at partial load,Closed,Medium,Mika Ito,Expansion Valve,2026-01-27,2026-02-19,Won't Fix,Sprint 16,5,mechanical;thermal,DR;RKD
+EVTM-1024,Power supply ripple on ECU 5V rail exceeds 100mV pp at 12V drop,Closed,Low,Emily Reeves,ECU,2026-02-02,2026-02-16,Won't Fix,Sprint 13,3,safety;software,DR
+EVTM-1025,EMC pre-compliance CISPR 25 Class 5 failure on ECU power lines,Resolved,High,Akiko Suzuki,System Integration,2026-03-28,2026-04-15,Won't Fix,Sprint 13,1,design;electrical;thermal,DR;SQA
+EVTM-1026,Inlet/outlet ΔT sensor pair mismatch exceeds 0.5°C specification,Resolved,Medium,Sarah Mitchell,Sensors,2026-03-22,2026-04-06,Fixed,Sprint 14,1,electrical;quality,RKD;SQA
+EVTM-1027,Cooling plate inlet manifold O-ring groove dimension out of tolerance,Resolved,Medium,Mika Ito,Cooling Plate,2026-02-20,2026-03-21,Fixed,Sprint 15,8,design;manufacturing;thermal,DR;PKD
+EVTM-1028,Cooling plate flatness exceeds spec on units 347-352,Resolved,Low,Mika Ito,Cooling Plate,2026-04-04,2026-04-10,Duplicate,Sprint 16,3,design;manufacturing,RKD
+EVTM-1029,Integration test — HVAC priority arbitration conflicts with BTMS request,Resolved,High,Satoshi Kobayashi,System Integration,2026-01-31,2026-03-01,Duplicate,Sprint 15,13,electrical;safety,SQA
+EVTM-1030,ECU flash memory write endurance margin below 10% at EOL,Blocked,Medium,Mika Ito,ECU,2026-03-30,,,Sprint 15,5,electrical;safety;software,RKD;SQA
+EVTM-1031,EXV stepper motor stall at −30°C ambient soak,Resolved,Critical,Sarah Mitchell,Expansion Valve,2026-02-05,2026-03-09,Duplicate,Sprint 16,3,mechanical;software;thermal,RKD
+EVTM-1032,Cooling plate weight 8% over target — evaluate thinner wall design,In Progress,Low,Yuki Tanaka,Cooling Plate,2026-01-05,,,Sprint 15,5,design;mechanical,DR
+EVTM-1033,Coolant flow rate drops below 6 L/min at high ambient temps,Resolved,Low,Yuki Tanaka,Coolant Pump,2026-01-22,2026-02-22,Duplicate,Sprint 15,2,electrical;manufacturing;quality,DR;RKD
+EVTM-1034,Coolant pump PWM duty-cycle mapping needs recalibration for low-flow mode,In Progress,Low,James Park,Coolant Pump,2026-02-05,,,Sprint 14,5,manufacturing;mechanical;quality,DR
+EVTM-1035,OBD-II DTC P0599 false trigger under cold-start conditions,Resolved,Low,Kenji Watanabe,ECU,2026-02-14,2026-03-22,Fixed,Sprint 16,5,electrical;safety;software,DR
+EVTM-1036,ECU bootloader update fails intermittently via UDS 0x34 service,Open,High,Akiko Suzuki,ECU,2026-02-27,,,Sprint 15,13,manufacturing;safety;software,DR
+EVTM-1037,Electronic expansion valve response lag >800ms at step input,Resolved,Critical,Satoshi Kobayashi,Expansion Valve,2026-02-27,2026-04-04,Duplicate,Sprint 15,8,mechanical;safety;thermal,DR
+EVTM-1038,Brazing joint leak detected at 2.5 bar pressure test on CP-4200-A1,Closed,Medium,Akiko Suzuki,Cooling Plate,2026-03-05,2026-03-15,Duplicate,Sprint 15,2,design;mechanical;thermal,PKD;RKD
+EVTM-1039,Pump cavitation noise observed above 55°C coolant temperature,Resolved,Medium,Satoshi Kobayashi,Coolant Pump,2026-02-22,2026-03-16,Fixed,Sprint 16,8,manufacturing;mechanical;safety,DR
+EVTM-1040,Radiator mounting bracket stress exceeds allowable at 20G shock load,In Progress,Medium,Mika Ito,Radiator,2026-02-02,,,Sprint 15,3,design;mechanical;quality;thermal,RKD
